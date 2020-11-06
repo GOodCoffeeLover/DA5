@@ -1,0 +1,214 @@
+#pragma once 
+#include<vector>
+#include<string>
+#include<iostream>
+
+
+
+class SuffixTrie{
+public:
+ 
+  SuffixTrie(const std::string& line){
+    word = line+'$'; //слово, по которому строем суф дерево
+    root = new Node(0, 0); //корень
+    Node* prev=nullptr; //вспомогаетльная переменная
+    Grow_point cur(root, -1, 0); //переменная точки роста, т.е. где мы сейчас находимся в дереве
+    //вершина, ребро, количество пройденных символов
+    
+    //for c in word
+    //  while true
+    //    if  есть переход из cur по c
+    //      cur = переход из cur по c
+    //      break;
+    //    else
+    //      сделать переход по c до последнего символа
+    //      prev=cur_new
+    //      cur= прыжок по счётчику по suf_link
+    //      (??) prev.suf_link=cur
+    //
+
+    for(unsigned int i=0; i<word.size(); ++i){
+      while(true){  
+        if(cur.edge==-1){//мы в вершине
+          cur=cur.node->way(word, word[i]);//ищем переход по i-ому символу из текущей вершины 
+          if(cur.edge!=-1){//нашли
+            cur.check();//проверяем, не прошлли по всем символам на данном ребре
+            break;
+          }
+          //нет ребра из текущей вершины по iому символу
+          cur.node->Nodes.push_back(new Node(i, word.size()-1)); 
+          //^|  добавляем нужное ребро по символам от текущего до последнего 
+          
+          if(cur.node==root)//мы не можем перейти по суфф ссылке из корня, т.к. её нет
+            break; //заканчиваем на этом итерацию
+          cur.node=cur.node->suf_link;//переход по суфф ссылке
+
+        }else{//мы на ребре
+          if(word[i]==word[cur.node->Nodes[cur.edge]->l+cur.sym]){//есть путь по ребру
+            cur.sym+=1; //просто двигаемся по нему
+            cur.check(); //проверяем, что не прошли все символы на ребре
+            break; //заканчиваем на этом итерацию
+          }
+          
+          //нет пути на ребре
+
+          Node* tmp=new Node(cur.node->Nodes[cur.edge]->l, cur.node->Nodes[cur.edge]->l + cur.sym-1);
+          //создаём новую вершину, чтобы разбить текущее ребро на две части и это новое ребро(первая половина старого) 
+          cur.node->Nodes[cur.edge]->l=cur.node->Nodes[cur.edge]->l + cur.sym;
+          //сдвигаем левую границу второй половины ребра
+          tmp->Nodes.push_back(cur.node->Nodes[cur.edge]);//добавляем второю половинку к новой вершине
+          tmp->Nodes.push_back(new Node(i, word.size()-1));//создаём новый путь, ради которого и разбивали ребро
+          cur.node->Nodes[cur.edge]=tmp; //двием указатель со старой вершины на новую
+          //закончили разбиение ребра теперь суф ссылка
+
+
+          //если мы отложили создание суф ссылки предыдущей вершины, то самое время её сделать
+          if(prev!=nullptr){
+            prev->suf_link=tmp; //указываем на новую вершину, которая соответствует тому же суффиксу, но на символ меньше
+            prev=nullptr;//забываем
+          }
+          cur=suf_jump(cur.node->suf_link, cur.node->Nodes[cur.edge]->l, cur.node->Nodes[cur.edge]->r);
+          //прыжок по суфф ссылке из текущей вершины и прохождение всех символов, которые мы уже прошли,  
+          //но делаем это умно
+          if(cur.edge==-1)//если пы рыгнули и пришли сразу в вершину, а не наребро
+            tmp->suf_link=cur.node;//то спокойно указываем суф ссылкой из новой вершины на эту на следующую 
+          else//если пришли в середину ребра, то значиты на следующем шаге мы снова создадим новую вершину
+            prev=tmp;//поэтому откладываем инициализацию суфф ссылки новой вершины
+        }
+      }//end while(true)
+    }
+  }
+
+  void overlap_statistic(std::vector<unsigned int>& stat, const std::string& text){
+    stat.resize(text.size(), 0);
+    Grow_point cur(root, -1, 0);
+    unsigned int level=0;
+    for(int i=0; i<text.size(); ++i){
+      while(i+level<text.size()){
+        if(cur.edge==-1){
+          cur=cur.node->way(word, text[i+level]);
+          if(cur.edge!=-1){
+            level+=1;
+            
+          }else{
+            break;
+          }
+        }else{
+          if(word[cur.node->Nodes[cur.edge]->l+cur.sym]==text[i+level]){
+            cur.sym+=1;
+            cur.check();
+            level+=1;
+          }else{
+            break;
+          }
+        }
+      }
+      stat[i]=level;
+      if(cur.edge==-1){
+        if(cur.node!=root){
+          cur.node=cur.node->suf_link;
+          level-=1;
+        }
+      }else{
+        cur=suf_jump(cur.node->suf_link, cur.node->Nodes[cur.edge]->l, cur.node->Nodes[cur.edge]->l + cur.sym -1);
+        level -=1;
+      }
+    }
+
+  }
+
+
+
+  ~SuffixTrie(){
+    delete root;
+  }
+  void debug(){
+    debug(root, 0);
+    std::cout<<"================================================"<<std::endl;
+  }
+
+private:
+  class Node;
+  class Grow_point;
+  std::string word;
+  Node* root;
+
+  void debug(Node* ver, int k){
+    for(int i =0; i<k; ++i)
+      std::cout<<"__";
+    std::cout<<"[ " <<ver->l<<':'<<ver->r<<" ]"<<"( "<< ver->Nodes.size()<<" )"<<std::endl;
+    for(Node* chlds : ver->Nodes)
+      debug(chlds, k+1);
+  }
+
+  class Node{
+  public:
+    Node(){}
+    Node(unsigned int _l, unsigned int _r) : l(_l), r(_r){}
+    ~Node(){
+        for(Node* ns : Nodes)
+            delete ns;
+    }
+    Grow_point way(const std::string& word, char w){
+    //функция, проверяющая есть ли путь из текущей вершины по нужному символу
+      for(int i=0; i<Nodes.size(); ++i){
+        if(word[Nodes[i]->l] == w)
+          return Grow_point(this, i, 1);
+      }
+      return Grow_point(this, -1, 0);
+    }
+
+    std::vector<Node*> Nodes;
+    unsigned int l=0, r=0;
+    Node* suf_link = nullptr;
+  };
+  
+  class Grow_point{
+  public:
+    Grow_point(){}
+    Node* node = nullptr; //указатель на вершину, из которой идёт наше ребро
+    int edge = -1; //индекс "ребра"
+    unsigned int sym = 0;//количество символов, сравнённых на этом ребре
+    Grow_point(Node* n, int e, unsigned int s) : node(n), edge(e), sym(s) {}
+
+    void check(){//проверка, что не прошли ли все символы по текущему ребру
+      //если прошли, то просто сдвигаемся на следующую вершину
+      if(node->Nodes[edge]->r - node->Nodes[edge]->l + 1 == sym){
+        node=node->Nodes[edge];
+        edge=-1;
+        sym = 0;
+      }          
+    }
+
+  };
+  
+  Grow_point suf_jump(Node* suf, unsigned int l, unsigned int r){
+    //продвижение по счётчику
+    if(suf==nullptr){//если это условие выполняется,
+      suf=root;//то значит, мы пытались перейти по суфф ссылке из корня
+      l+=1;//тогда просто перейдём по сроке word[l+1...r],т.е. пропустив первый символ 
+    }
+    Grow_point ans(suf, -1, 0);//инициализируем ответ
+    if(l>r)//если true, значит мы поптались перейти из корня по суф ссылке одному символу, 
+      return ans;//тогда возращаем сразу ответ, который точно корень не проходя по символам 
+    while(true){
+      ans=ans.node->way(word, word[l]); //ищем путь продвежения 
+      //если надо пройти l-r+1 символов больше чем/столько же символов на текущем ребре, то   
+      if((l<r) && ((ans.node->Nodes[ans.edge]->r - ans.node->Nodes[ans.edge]->l) <= (r-l)) ){
+        ans.node=ans.node->Nodes[ans.edge];//двигаемся дальше по ребру
+        l += ans.node->r - ans.node->l + 1;//двигаем левую границу на пропущенные символы
+      }else{//мы остановились на середине ребра
+        ans.sym = r-l+1;//указыаем, сколько символов прошли на текущем ребре
+        break;
+      }
+    }
+    ans.check(); //проверка на не прошли ли мы все символы на ребре
+    return ans;
+  }
+
+
+};
+
+
+
+
